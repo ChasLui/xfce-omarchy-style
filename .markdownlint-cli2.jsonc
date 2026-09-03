@@ -1,0 +1,8 @@
+{
+  "config": {
+    // Keybinding and xfconf reference tables cannot wrap at 80 columns.
+    "MD013": false,
+    // Compact tables: single spaces, no padding. Easier to edit by hand.
+    "MD060": { "style": "compact" }
+  }
+}
