@@ -2296,6 +2296,14 @@ Log out and back in.
 
 ---
 
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+Changing this guide: see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
 **Tracks:** Omarchy Manual as of 2026-09-03
 **Target:** xrdp with the Xorg (xorgxrdp) backend, XFCE 4.18+
 **Configuration version:** 3.0
