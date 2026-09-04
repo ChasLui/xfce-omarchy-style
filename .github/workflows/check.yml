@@ -1,0 +1,24 @@
+---
+name: check
+
+"on":
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install markdownlint-cli2
+        run: npm install --global markdownlint-cli2
+
+      # shellcheck ships on the ubuntu runner image; install it anyway so
+      # a change to that image cannot turn the check into a silent SKIP.
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install --yes shellcheck
+
+      # --strict makes a skipped check fail, so a missing tool is never green.
+      - name: Run repository checks
+        run: python3 tools/check.py --strict

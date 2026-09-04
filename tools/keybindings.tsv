@@ -1,0 +1,126 @@
+tier	accel	keys	status	table	card	kind	target
+base	<Super>w	`Super + W` / `Super + Q`	Native	Navigating	Super + W / Super + Q	wm	close_window_key
+base	<Super>q	`Super + W` / `Super + Q`	Native	Navigating	Super + W / Super + Q	wm	close_window_key
+base	<Super>f	`Super + F`	Native	Navigating	Super + F	wm	fullscreen_key
+base	<Alt><Super>f	`Super + Alt + F`	Native	Navigating	Super + Alt + F	wm	fill_horiz_key
+base	<Super>o	`Super + O`	Native	Navigating	Super + O	wm	stick_window_key
+base	<Super>Tab	`Super + Tab`	Native	Navigating	Super + Tab	wm	next_workspace_key
+base	<Shift><Super>Tab	`Super + Shift + Tab`	Native	Navigating	Super + Shift + Tab	wm	prev_workspace_key
+base	<Shift><Super>Left	`Super + Shift + Arrow`	Native (different semantics)	Navigating	Super + Shift + Arrow	wm	tile_left_key
+base	<Shift><Super>Right	`Super + Shift + Arrow`	Native (different semantics)	Navigating	Super + Shift + Arrow	wm	tile_right_key
+base	<Shift><Super>Up	`Super + Shift + Arrow`	Native (different semantics)	Navigating	Super + Shift + Arrow	wm	tile_up_key
+base	<Shift><Super>Down	`Super + Shift + Arrow`	Native (different semantics)	Navigating	Super + Shift + Arrow	wm	tile_down_key
+base	<Super>1	`Super + 1…4`	Native	Navigating	Super + 1-4	wm	workspace_1_key
+base	<Super>2	`Super + 1…4`	Native	Navigating	Super + 1-4	wm	workspace_2_key
+base	<Super>3	`Super + 1…4`	Native	Navigating	Super + 1-4	wm	workspace_3_key
+base	<Super>4	`Super + 1…4`	Native	Navigating	Super + 1-4	wm	workspace_4_key
+base	<Shift><Super>1	`Super + Shift + 1…4`	Native	Navigating	Super + Shift + 1-4	wm	move_window_workspace_1_key
+base	<Shift><Super>2	`Super + Shift + 1…4`	Native	Navigating	Super + Shift + 1-4	wm	move_window_workspace_2_key
+base	<Shift><Super>3	`Super + Shift + 1…4`	Native	Navigating	Super + Shift + 1-4	wm	move_window_workspace_3_key
+base	<Shift><Super>4	`Super + Shift + 1…4`	Native	Navigating	Super + Shift + 1-4	wm	move_window_workspace_4_key
+base	<Super>Return	`Super + Return`	Native	Launching apps	Super + Return	cmd	alacritty
+base	<Alt><Super>Return	`Super + Alt + Return`	Native	Launching apps		cmd	alacritty -e tmux
+base	<Shift><Super>Return	`Super + Shift + Return`	Emulated	Launching apps	Super + Shift + Return	cmd	$BIN/omarchy-launch-browser
+base	<Shift><Alt><Super>b	`Super + Shift + Alt + B`	Emulated	Launching apps		cmd	$BIN/omarchy-launch-browser --private
+base	<Shift><Super>f	`Super + Shift + F`	Native	Launching apps	Super + Shift + F	cmd	thunar
+base	<Shift><Super>n	`Super + Shift + N`	Native	Launching apps	Super + Shift + N	cmd	code
+base	<Shift><Super>g	`Super + Shift + G`	Native	Launching apps		cmd	signal-desktop
+base	<Super>space	`Super + Space`	Emulated	Navigating	Super + Space	cmd	$BIN/omarchy-menu
+base	<Alt><Super>space	`Super + Alt + Space`	Emulated	Navigating		cmd	$BIN/omarchy-menu
+base	<Super>Escape	`Super + Escape`	Native	Navigating	Super + Escape	cmd	xfce4-session-logout
+base	<Primary><Super>l	`Super + Ctrl + L`	Native	Navigating	Super + Ctrl + L	cmd	xflock4
+base	<Super>Left	`Super + Arrow`	Emulated	Navigating	Super + Arrow	cmd	$BIN/omarchy-focus-direction left
+base	<Super>Right	`Super + Arrow`	Emulated	Navigating	Super + Arrow	cmd	$BIN/omarchy-focus-direction right
+base	<Super>Up	`Super + Arrow`	Emulated	Navigating	Super + Arrow	cmd	$BIN/omarchy-focus-direction up
+base	<Super>Down	`Super + Arrow`	Emulated	Navigating	Super + Arrow	cmd	$BIN/omarchy-focus-direction down
+base	<Super>s	`Super + S` / `Super + Grave`	Emulated	Navigating	Super + S	cmd	$BIN/omarchy-scratchpad
+base	<Super>grave	`Super + S` / `Super + Grave`	Emulated	Navigating		cmd	$BIN/omarchy-scratchpad
+base	<Super>c	`Super + C`	Emulated	Universal clipboard	Super + C / X / V	cmd	$BIN/omarchy-smart-copy
+base	<Super>x	`Super + X`	Emulated	Universal clipboard	Super + C / X / V	cmd	$BIN/omarchy-smart-cut
+base	<Super>v	`Super + V`	Emulated	Universal clipboard	Super + C / X / V	cmd	$BIN/omarchy-smart-paste
+base	<Primary><Super>v	`Super + Ctrl + V`	Native	Universal clipboard	Super + Ctrl + V	cmd	xfce4-popup-clipman
+base	Print	`Print`	Emulated `†`	Capture	Print	cmd	$BIN/omarchy-screenshot-file
+base	<Shift>Print	`Shift + Print`	Emulated `†`	Capture		cmd	$BIN/omarchy-screenshot-selection
+base	<Alt>Print	`Alt + Print`	Emulated `†`	Capture	Alt + Print	cmd	$BIN/omarchy-screenrecord
+base	<Super>Print	`Super + Print`	Emulated `†`	Capture	Super + Print	cmd	$BIN/omarchy-color-picker
+base	<Primary><Super>Print	`Super + Ctrl + Print`	Emulated `†`	Capture	Super + Ctrl + Print	cmd	$BIN/omarchy-ocr
+base	<Primary><Super>c	`Super + Ctrl + C`	Emulated	System controls		cmd	$BIN/omarchy-screenshot-selection
+base	<Primary><Super>a	`Super + Ctrl + A`	Emulated	System controls	Super + Ctrl + A/B/W/D/P	cmd	$BIN/omarchy-panel audio
+base	<Primary><Super>b	`Super + Ctrl + B`	Emulated	System controls	Super + Ctrl + A/B/W/D/P	cmd	$BIN/omarchy-panel bluetooth
+base	<Primary><Super>w	`Super + Ctrl + W`	Emulated	System controls	Super + Ctrl + A/B/W/D/P	cmd	$BIN/omarchy-panel network
+base	<Primary><Super>d	`Super + Ctrl + D`	Emulated	System controls	Super + Ctrl + A/B/W/D/P	cmd	$BIN/omarchy-panel display
+base	<Primary><Super>p	`Super + Ctrl + P`	Emulated	System controls	Super + Ctrl + A/B/W/D/P	cmd	$BIN/omarchy-panel power
+base	<Primary><Alt><Super>d	`Super + Ctrl + Alt + D`	Emulated	System controls		cmd	$BIN/omarchy-panel calendar
+base	<Primary><Super>t	`Super + Ctrl + T`	Native	System controls	Super + Ctrl + T	cmd	alacritty -e btop
+base	<Primary><Super>s	`Super + Ctrl + S`	Emulated	System controls	Super + Ctrl + S	cmd	localsend
+base	<Primary><Super>q	`Super + Ctrl + Q`	Native	System controls	Super + Ctrl + Q	cmd	galculator
+base	<Primary><Super>e	`Super + Ctrl + E`	Emulated	System controls	Super + Ctrl + E	cmd	rofimoji
+base	<Primary><Super>comma	`Super + Ctrl + ,`	Emulated	Notifications	Super + Ctrl + ,	cmd	$BIN/omarchy-toggle-dnd
+base	<Shift><Alt><Super>comma	`Super + Shift + Alt + ,`	Emulated	Notifications		cmd	xfce4-notifyd-config
+base	<Primary><Super>n	`Super + Ctrl + N`	**Not possible** `†`	Toggles	Super + Ctrl + N	cmd	$BIN/omarchy-toggle-nightlight
+base	<Shift><Super>space	`Super + Shift + Space`	Emulated	Toggles	Super + Shift + Space	cmd	$BIN/omarchy-toggle-bar
+base	<Shift><Primary><Super>space	`Super + Ctrl + Shift + Space`	Emulated	Style		cmd	$BIN/omarchy-theme-switch
+base	<Primary><Alt><Super>t	`Super + Ctrl + Alt + T`	Emulated	Notices	Super + Ctrl + Alt + T/B/W	cmd	$BIN/omarchy-notice time
+base	<Primary><Alt><Super>b	`Super + Ctrl + Alt + B`	Emulated `†`	Notices	Super + Ctrl + Alt + T/B/W	cmd	$BIN/omarchy-notice battery
+base	<Primary><Alt><Super>w	`Super + Ctrl + Alt + W`	Emulated `†`	Notices	Super + Ctrl + Alt + T/B/W	cmd	$BIN/omarchy-notice weather
+base	<Primary><Super>r	`Super + Ctrl + R`	Emulated	Reminders	Super + Ctrl + R	cmd	$BIN/omarchy-reminder
+base	XF86AudioRaiseVolume	`XF86AudioRaiseVolume`		Media and hardware keys	Volume / Play	cmd	pamixer -i 5
+base	XF86AudioLowerVolume	`XF86AudioLowerVolume`		Media and hardware keys	Volume / Play	cmd	pamixer -d 5
+base	XF86AudioMute	`XF86AudioMute`		Media and hardware keys	Volume / Play	cmd	pamixer -t
+base	XF86AudioPlay	`XF86AudioPlay`		Media and hardware keys	Volume / Play	cmd	playerctl play-pause
+base	XF86AudioNext	`XF86AudioNext`		Media and hardware keys	Volume / Play	cmd	playerctl next
+base	XF86AudioPrev	`XF86AudioPrev`		Media and hardware keys	Volume / Play	cmd	playerctl previous
+base	XF86MonBrightnessUp	`XF86MonBrightnessUp`		Media and hardware keys	Brightness|Brightness keys	cmd	brightnessctl set +5%
+base	XF86MonBrightnessDown	`XF86MonBrightnessDown`		Media and hardware keys	Brightness|Brightness keys	cmd	brightnessctl set 5%-
+A	<Shift><Primary><Alt>p	`Ctrl + Shift + Alt + P`		Tier A — Print-key aliases	Ctrl + Shift + Alt + P	cmd	$BIN/omarchy-screenshot-file
+A	<Shift><Primary><Alt>s	`Ctrl + Shift + Alt + S`		Tier A — Print-key aliases	Ctrl + Shift + Alt + S	cmd	$BIN/omarchy-screenshot-selection
+A	<Shift><Primary><Alt>r	`Ctrl + Shift + Alt + R`		Tier A — Print-key aliases	Ctrl + Shift + Alt + R	cmd	$BIN/omarchy-screenrecord
+A	<Shift><Primary><Alt>c	`Ctrl + Shift + Alt + C`		Tier A — Print-key aliases	Ctrl + Shift + Alt + C	cmd	$BIN/omarchy-color-picker
+A	<Shift><Primary><Alt>o	`Ctrl + Shift + Alt + O`		Tier A — Print-key aliases	Ctrl + Shift + Alt + O	cmd	$BIN/omarchy-ocr
+B	<Primary><Alt>w	`Ctrl + Alt + W`		Tier B — no-Super fallback		wm	close_window_key
+B	<Primary><Alt>f	`Ctrl + Alt + F`		Tier B — no-Super fallback		wm	fullscreen_key
+B	<Primary><Alt>Left	`Ctrl + Alt + Left` / `Right`		Tier B — no-Super fallback		wm	prev_workspace_key
+B	<Primary><Alt>Right	`Ctrl + Alt + Left` / `Right`		Tier B — no-Super fallback		wm	next_workspace_key
+B	<Primary><Alt>1	`Ctrl + Alt + 1…4`		Tier B — no-Super fallback		wm	workspace_1_key
+B	<Primary><Alt>2	`Ctrl + Alt + 1…4`		Tier B — no-Super fallback		wm	workspace_2_key
+B	<Primary><Alt>3	`Ctrl + Alt + 1…4`		Tier B — no-Super fallback		wm	workspace_3_key
+B	<Primary><Alt>4	`Ctrl + Alt + 1…4`		Tier B — no-Super fallback		wm	workspace_4_key
+B	<Shift><Primary><Alt>1	`Ctrl + Shift + Alt + 1…4`		Tier B — no-Super fallback		wm	move_window_workspace_1_key
+B	<Shift><Primary><Alt>2	`Ctrl + Shift + Alt + 1…4`		Tier B — no-Super fallback		wm	move_window_workspace_2_key
+B	<Shift><Primary><Alt>3	`Ctrl + Shift + Alt + 1…4`		Tier B — no-Super fallback		wm	move_window_workspace_3_key
+B	<Shift><Primary><Alt>4	`Ctrl + Shift + Alt + 1…4`		Tier B — no-Super fallback		wm	move_window_workspace_4_key
+B	<Primary><Alt>Return	`Ctrl + Alt + Return`, `Ctrl + Alt + T`		Tier B — no-Super fallback		cmd	alacritty
+B	<Primary><Alt>t	`Ctrl + Alt + Return`, `Ctrl + Alt + T`		Tier B — no-Super fallback		cmd	alacritty
+B	<Primary><Alt>space	`Ctrl + Alt + Space`		Tier B — no-Super fallback		cmd	$BIN/omarchy-menu
+B	<Primary><Alt>l	`Ctrl + Alt + L`		Tier B — no-Super fallback		cmd	xflock4
+B	<Primary><Alt>grave	`Ctrl + Alt + Grave`		Tier B — no-Super fallback		cmd	$BIN/omarchy-scratchpad
+B	<Primary><Alt>v	`Ctrl + Alt + V`		Tier B — no-Super fallback		cmd	xfce4-popup-clipman
+B	<Shift><Primary><Alt>Left	`Ctrl + Shift + Alt + Arrow`		Tier B — no-Super fallback		cmd	$BIN/omarchy-focus-direction left
+B	<Shift><Primary><Alt>Right	`Ctrl + Shift + Alt + Arrow`		Tier B — no-Super fallback		cmd	$BIN/omarchy-focus-direction right
+B	<Shift><Primary><Alt>Up	`Ctrl + Shift + Alt + Arrow`		Tier B — no-Super fallback		cmd	$BIN/omarchy-focus-direction up
+B	<Shift><Primary><Alt>Down	`Ctrl + Shift + Alt + Arrow`		Tier B — no-Super fallback		cmd	$BIN/omarchy-focus-direction down
+none		`Ctrl + Alt + Del`	Not possible	Navigating			
+none		`Super + Ctrl + F`	Not possible	Navigating			
+none		`Alt + Tab`	Native	Navigating	Alt + Tab		
+none		`Alt + Shift + Tab`	Native	Navigating			
+none		`Super + Alt + S`	Not possible	Navigating			
+none		`Super + T`	Not possible	Navigating			
+none		`Super + L`	Not possible	Navigating			
+none		`Super + J`	Not possible	Navigating			
+none		`Super + P`	Not possible	Navigating			
+none		`Super + G`	Not possible	Navigating			
+none		`Super + Minus` / `Super + Equal`	Native (different semantics)	Navigating			
+none		`Super + Ctrl + Z`	Not possible	Navigating			
+none		`Super + Ctrl + Tab`	Not possible	Navigating			
+none		`Super + Ctrl + O` / `Super + Ctrl + H`	Not possible	System controls			
+none		`Super + Ctrl + .`	Not possible	System controls			
+none		`Super + ,`	Not possible	Notifications			
+none		`Super + Shift + ,`	Not possible	Notifications			
+none		`Super + Alt + ,`	Not possible	Notifications			
+none		`Super + Ctrl + Space`	Emulated	Style			
+none		`Super + Backspace`	**Not possible** `†`	Style	Super + Backspace		
+none		`Super + Ctrl + Backspace`	Not possible	Style			
+none		`Super + Ctrl + I`	Emulated	Toggles			
+none		`Super + Shift + Backspace`	Not possible	Toggles			
+none		`Super + Ctrl + Alt + R`	Not possible	Reminders			
+none		`Super + Ctrl + Shift + R`	Not possible	Reminders			

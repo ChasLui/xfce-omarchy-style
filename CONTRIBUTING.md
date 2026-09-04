@@ -3,9 +3,10 @@
 ## What this repository is
 
 One file. `README.md` is the entire guide: how to make XFCE behave like Omarchy, aimed at
-an xrdp remote session on the Xorg (xorgxrdp) backend. There is no installer, no `bin/`,
-no scripts on disk — the shell in the guide is meant to be read and copied, and that is
-deliberate.
+an xrdp remote session on the Xorg (xorgxrdp) backend. The guide ships no installer and
+no `bin/`: its shell is meant to be read and copied, and that is deliberate. `tools/`
+holds repository tooling, which is not part of the guide and is never installed by it.
+Agents should start from [AGENTS.md](AGENTS.md).
 
 The only external source this guide tracks is <https://omarchy.org/manual/>. This
 repository has diverged from `justnorriel/xfce-omarchy-style`: there is no upstream
@@ -47,13 +48,17 @@ Two specific traps:
 The guide describes each binding four times. A previous revision shipped with three of
 them disagreeing, so treat this as a checklist, not a suggestion:
 
-1. The nine tables under `## Keybindings`
+1. The tables under `## Keybindings`
 2. The base apply block under `## Applying the Keybindings`
 3. The `### Tier A` and `### Tier B` override blocks
 4. Both ASCII cards under `## Quick Reference Card`
 
 The ASCII cards have a fixed 60-character row width. If a label changes length, re-pad the
-row — do not eyeball it.
+row — do not eyeball it, and do not measure it in bytes: the box-drawing characters are
+multibyte, so `awk` and `wc -c` both report the wrong width.
+
+`tools/keybindings.tsv` is the inventory all four places are checked against. Update it in
+the same commit as the binding, and `tools/check.py` will prove the four agree.
 
 For how accelerator strings must be written — `<Primary>` rather than `<Control>`,
 canonical modifier order, lowercase letter keys — see
@@ -67,22 +72,18 @@ New bindings must also avoid the keys an RDP client keeps for itself; the list i
 
 ## Before you commit
 
-Markdown must lint clean. The configuration is in `.markdownlint-cli2.jsonc`:
-
 ```bash
-markdownlint-cli2 README.md CONTRIBUTING.md
+python3 tools/check.py
 ```
 
-Shell must pass ShellCheck. The guide's fenced `bash` blocks are fragments, not standalone
-scripts, so extract them and check each one on its own:
+That runs everything a machine can decide: markdownlint against
+`.markdownlint-cli2.jsonc`, ShellCheck over every fenced `bash` block extracted on its
+own (they are fragments, not standalone scripts), the four-place keybinding sync above,
+the card widths, the accelerator syntax, and every internal link. It needs nothing but
+`python3`, and reports `SKIP` rather than passing quietly when `markdownlint-cli2` or
+`shellcheck` is missing. CI runs the same script with `--strict`, where a skip fails.
 
-````bash
-TMP=$(mktemp -d)
-awk -v d="$TMP" '/^```bash$/{n++;f=sprintf("%s/blk-%03d.sh",d,n);next} /^```/{f="";next} f{print > f}' README.md
-shellcheck -S warning -s bash "$TMP"/blk-*.sh
-rm -rf "$TMP"
-````
-
-That must exit clean. At `-S style` it reports one SC2016 in the `.bash_profile` line that
-appends to `PATH` — the single quotes there are intentional, since `$HOME` and `$PATH` are
-meant to reach the file unexpanded. Do not "fix" it.
+One ShellCheck finding is deliberate. At `-S style` the `.bash_profile` line that appends
+to `PATH` reports SC2016: the single quotes there are intentional, since `$HOME` and
+`$PATH` are meant to reach the file unexpanded. The script asserts that it stays the only
+one. Do not "fix" it.
