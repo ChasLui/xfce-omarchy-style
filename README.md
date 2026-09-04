@@ -674,17 +674,15 @@ engine — without it fcitx5 is a framework that only types English.
 
 ### The one file you edit
 
-This is the same `~/.xinitrc` as in [Session startup](#session-startup), not a second file.
-Put the exports above the `exec` line that is already there:
+Not a new file: this is the `~/.xinitrc` from [Session startup](#session-startup). Add
+these four lines above the `exec` line already in it, and change nothing else there:
 
 ```bash
-# ~/.xinitrc
+# ~/.xinitrc — above the existing exec line
 export LANG=zh_CN.UTF-8
 export GTK_IM_MODULE=fcitx
 export QT_IM_MODULE=fcitx
 export XMODIFIERS=@im=fcitx
-
-exec dbus-launch --exit-with-session xfce4-session
 ```
 
 `GTK_IM_MODULE` and `QT_IM_MODULE` route toolkit applications through fcitx5; `XMODIFIERS`
