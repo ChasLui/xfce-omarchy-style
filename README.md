@@ -36,6 +36,7 @@ covered; where a finding depends on xorgxrdp internals, that is said at the poin
 - [xrdp Server Setup and Tuning](#xrdp-server-setup-and-tuning)
 - [RDP Client Setup](#rdp-client-setup)
 - [Required Packages](#required-packages)
+- [Chinese and Input Method](#chinese-and-input-method)
 - [Scripts](#scripts)
 - [Keybindings](#keybindings)
 - [Applying the Keybindings](#applying-the-keybindings)
@@ -537,6 +538,9 @@ Omarchy uses **JetBrainsMono Nerd Font** as both terminal and system font. Earli
 versions of this guide used CaskaydiaMono (`ttf-cascadia-code-nerd`), which is still a
 fine choice if you prefer it.
 
+Neither package covers Han characters. If the session has to display Chinese, see
+[CJK fonts](#cjk-fonts).
+
 ### Themes
 
 ```bash
@@ -569,6 +573,169 @@ sudo pacman -S alacritty
 
 Zen Browser is not in the official repositories — install `zen-browser-bin` from the AUR,
 or substitute any browser you like and adjust `omarchy-launch-browser`.
+
+---
+
+## Chinese and Input Method
+
+Nothing above this point assumes a locale. This section is what you add if the session has
+to show and accept Chinese. Two of the steps are xrdp-specific, and skipping them the way a
+generic Arch guide would leads you into failures that produce no error at all.
+
+### Generating the locale
+
+```ini
+# /etc/locale.gen — uncomment both lines
+zh_CN.UTF-8 UTF-8
+en_US.UTF-8 UTF-8
+```
+
+`en_US` stays as a fallback for the many tools that have no Chinese translation. Then
+generate and set it:
+
+```bash
+sudo locale-gen
+```
+
+```ini
+# /etc/locale.conf
+LANG=zh_CN.UTF-8
+```
+
+**System-wide, not per-user.** The next subsection is why.
+
+### Why the per-user locale override does nothing here
+
+The Arch wiki documents `~/.config/locale.conf` as the way for one user to override the
+system locale. Inside an xrdp session, nothing reads that file.
+
+Arch's `xrdp` package patches `sesman/startwm.sh`, and the patched `wm_start()` begins:
+
+```text
+if [ -r /etc/locale.conf ]; then
+    . /etc/locale.conf
+    export LANG LANGUAGE
+fi
+```
+
+Only after that does it call `pre_start`, which sources `/etc/profile`, which runs every
+`/etc/profile.d/*.sh`. And `locale.sh` — the script that implements the per-user override —
+opens with `if [ -z "$LANG" ]; then`. `LANG` was exported two steps earlier, so that branch
+never runs and `~/.config/locale.conf` is never opened. There is no warning and no
+fallback; the file just has no effect. Put the locale in `/etc/locale.conf`, or export it
+from `~/.xinitrc`.
+
+### Where session environment variables have to go
+
+The same `pre_start()` picks exactly one profile file, in this order:
+
+```text
+/etc/profile  →  ~/.bash_profile, else ~/.bash_login, else ~/.profile
+```
+
+`~/.profile` is reached only when neither of the first two exists — and
+[Making the scripts executable](#making-the-scripts-executable) has you append the `PATH`
+line to `~/.bash_profile`. After that step `~/.profile` is a dead file for this session, so
+every generic input-method guide that says "export `GTK_IM_MODULE` in `~/.profile`" is
+wrong for anyone following this one.
+
+`~/.xinitrc` is the dependable place. xrdp sources it last, immediately before the window
+manager starts, so everything the desktop spawns inherits what it exports.
+
+### CJK fonts
+
+```bash
+sudo pacman -S noto-fonts-cjk
+```
+
+Noto CJK is a single family covering Simplified, Traditional, Japanese and Korean, and many
+codepoints are shared across them with different regional glyph shapes. Which shape
+fontconfig picks follows the locale, so getting `LANG` right is also what makes Han
+characters come out in their Chinese forms instead of Japanese ones.
+
+No application needs its own font configuration for this. The panel, rofi and every GTK
+program render through pango, Alacritty resolves through fontconfig, and all of them fall
+back to Noto CJK once it is installed.
+
+### Installing fcitx5
+
+```bash
+sudo pacman -S fcitx5-im fcitx5-chinese-addons
+```
+
+`fcitx5-im` is a group: `fcitx5` itself, `fcitx5-configtool`, and the `fcitx5-gtk` and
+`fcitx5-qt` input-method modules. `fcitx5-chinese-addons` is what supplies the Pinyin
+engine — without it fcitx5 is a framework that only types English.
+
+| Optional package | What it adds |
+| ------------------ | -------------- |
+| `fcitx5-pinyin-zhwiki` | A Pinyin dictionary built from Chinese Wikipedia |
+| `fcitx5-lua` | `;sj` inserts the current time, `;rq` the current date |
+
+### The one file you edit
+
+This is the same `~/.xinitrc` as in [Session startup](#session-startup), not a second file.
+Put the exports above the `exec` line that is already there:
+
+```bash
+# ~/.xinitrc
+export LANG=zh_CN.UTF-8
+export GTK_IM_MODULE=fcitx
+export QT_IM_MODULE=fcitx
+export XMODIFIERS=@im=fcitx
+
+exec dbus-launch --exit-with-session xfce4-session
+```
+
+`GTK_IM_MODULE` and `QT_IM_MODULE` route toolkit applications through fcitx5; `XMODIFIERS`
+covers plain X11 applications through XIM. The Arch wiki's advice that these can be left
+unset is about Wayland compositors using the `text-input` protocol — this is an X11
+session, so all three are needed.
+
+The `LANG` line matters only if you want this user in Chinese while the system stays
+English. With `zh_CN.UTF-8` already in `/etc/locale.conf` it is redundant but harmless.
+
+### Autostart
+
+Nothing to do. The `fcitx5` package ships `/etc/xdg/autostart/org.fcitx.Fcitx5.desktop` and
+xfce4-session honours XDG autostart, so it comes up with the desktop. Unlike the entries in
+[Autostart Applications](#autostart-applications), you do not add this one by hand.
+
+### Switching input methods
+
+`Ctrl + Space` is fcitx5's default toggle. This guide never binds a bare `Ctrl + Space` —
+every `Ctrl` binding in it also carries `Super` or `Alt` — so there is no conflict on the
+XFCE side.
+
+The client side is a different matter, and this is a suggestion rather than something
+verified here: the RDP client, or the input method running on the client machine, can
+consume `Ctrl + Space` before it ever reaches the session — on a Chinese Windows client
+that combination is a local IME hotkey as well. If pressing it does nothing, put the
+client-side input method into plain English first; if that is impractical, change the
+trigger in `fcitx5-configtool` → *Global Options*. Which keys a client keeps in general is
+[Keys the RDP client keeps for itself](#keys-the-rdp-client-keeps-for-itself).
+
+### What does not need changing
+
+The xrdp keymap. A zh-CN keyboard is physically US ANSI, and Chinese is composed by the
+input method on the server rather than produced by a scancode mapping, so
+`/etc/xrdp/km-*.toml` stays as it is. [Keyboard layout](#keyboard-layout) still applies if
+the wrong *Latin* characters arrive.
+
+### Verifying
+
+Run these inside the xrdp session, not over ssh — an ssh shell has a different environment:
+
+```bash
+locale                      # LANG=zh_CN.UTF-8
+env | grep -E 'IM_MODULE|XMODIFIERS'
+fcitx5-diagnose | head -40  # official self-check: missing modules, unset variables
+```
+
+Then open any text field and type. If the candidate window works but the desktop is still
+in English, the session predates the change: `LANG` is read once at session start, and
+reconnecting reuses the same session rather than starting a new one
+(see [Disconnect vs log out](#disconnect-vs-log-out)).
 
 ---
 
@@ -2136,6 +2303,16 @@ reports success and changes nothing; the reasoning and source references are in
 The shipped `omarchy-toggle-nightlight` detects the session and tells you instead of
 pretending.
 
+### Over xrdp: the session is English, or fcitx5 never appears
+
+Two silent failures, both xrdp-specific. A per-user `~/.config/locale.conf` is never read,
+because xrdp exports `LANG` from `/etc/locale.conf` before `/etc/profile` runs — put the
+locale in `/etc/locale.conf` instead. And input-method variables placed in `~/.profile` are
+never read either, because this guide has you create `~/.bash_profile`, which xrdp sources
+in its place. Both are worked through in
+[Chinese and Input Method](#chinese-and-input-method); `fcitx5-diagnose` reports which of
+the two bit you.
+
 ### Over xrdp: network or disk settings are greyed out
 
 Remote sessions do not automatically inherit the polkit privileges a local seat gets.
@@ -2285,6 +2462,9 @@ Log out and back in.
 - [neutrinolabs/xrdp](https://github.com/neutrinolabs/xrdp) — `xrdp.ini` and `sesman.ini` reference
 - [neutrinolabs/xorgxrdp](https://github.com/neutrinolabs/xorgxrdp) — the Xorg backend, and where the gamma finding comes from
 - [Remote Desktop Services shortcut keys](https://learn.microsoft.com/en-us/windows/win32/termserv/terminal-services-shortcut-keys) — which keys a Windows client keeps
+- [Arch Wiki — Fcitx5](https://wiki.archlinux.org/title/Fcitx5) — the packages, environment variables and autostart behaviour used above
+- [Arch Wiki — Locale](https://wiki.archlinux.org/title/Locale) — `locale.gen`, `locale.conf` and the per-user override that xrdp defeats
+- [AUR `xrdp` — `arch-config.diff`](https://aur.archlinux.org/cgit/aur.git/tree/arch-config.diff?h=xrdp) — the Arch-specific `startwm.sh` patch both locale traps come from
 
 ---
 
