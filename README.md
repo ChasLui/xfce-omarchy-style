@@ -2,6 +2,20 @@
 
 Turn a stock XFCE desktop into something that behaves like [Omarchy](https://omarchy.org).
 
+**This guide assumes the XFCE machine is reached over
+[xrdp](https://github.com/neutrinolabs/xrdp).** That is the default throughout — package
+lists, keybindings, and configuration are written for a remote session, and the
+differences on a local physical desktop are called out inline.
+
+Two consequences, both worth knowing before you start:
+
+- **What survives the trip is Omarchy's keyboard workflow, not its looks.** Compositing,
+  transparency, blur, and the night light all have to go. See
+  [Works locally, degraded or dead over xrdp](#works-locally-degraded-or-dead-over-xrdp).
+- **Almost every binding here depends on your RDP client forwarding `Super`.** Configure
+  the client first, or none of this will appear to work. See
+  [RDP Client Setup](#rdp-client-setup).
+
 Omarchy is an Arch-based distribution built on Hyprland (a tiling Wayland compositor)
 and Quickshell. XFCE is a stacking window manager on X11. Some of Omarchy's behaviour
 maps over cleanly, some has to be simulated with scripts, and some cannot be reproduced
@@ -11,10 +25,16 @@ at all. This document is explicit about which is which — see the
 **Tracking:** [Omarchy Manual](https://omarchy.org/manual/) as of 2026-09-03
 ([hotkey reference](https://omarchy.org/manual/hotkeys)).
 
+**Target:** xrdp with the **Xorg / xorgxrdp** backend, XFCE 4.18 or newer, on X11. Every
+remote-specific claim below was checked against the Xorg backend. The Xvnc backend is not
+covered; where a finding depends on xorgxrdp internals, that is said at the point of use.
+
 ## Table of Contents
 
 - [Compatibility Matrix](#compatibility-matrix)
 - [Prerequisites](#prerequisites)
+- [xrdp Server Setup and Tuning](#xrdp-server-setup-and-tuning)
+- [RDP Client Setup](#rdp-client-setup)
 - [Required Packages](#required-packages)
 - [Scripts](#scripts)
 - [Keybindings](#keybindings)
@@ -30,7 +50,10 @@ at all. This document is explicit about which is which — see the
 
 ## Compatibility Matrix
 
-Every binding in this document falls into one of three buckets:
+Every binding in this document falls into one of three buckets. **The status is judged
+inside an xrdp session** — that is this guide's default environment. Where a binding
+behaves differently on a local physical desktop, it is marked `†` and explained in
+[Works locally, degraded or dead over xrdp](#works-locally-degraded-or-dead-over-xrdp).
 
 | Status | Meaning |
 | -------- | --------- |
@@ -78,7 +101,7 @@ actively harmful (see [Scripts](#scripts)).
 | Scratchpad workspace | xfwm4 has no scratchpad | `xfce4-terminal --drop-down`, or `tdrop` for any app |
 | System panels (audio/network/…) | No unified panel system | `omarchy-panel` dispatching to the standard XFCE/GTK dialogs |
 | Theme switching | No theme engine spanning terminal + WM + launcher | `omarchy-theme-switch` |
-| Night light | — | `redshift` |
+| Night light | — | `redshift` — **but see below: this does nothing over xrdp** |
 | Reminders, notices | — | `notify-send` wrappers |
 
 ### What is not possible
@@ -88,10 +111,38 @@ actively harmful (see [Scripts](#scripts)).
 | Dwindle auto-tiling (new windows split automatically) | xfwm4 is a stacking WM with manual tiling only | None packaged in Arch repos or the AUR |
 | Scrolling layout (`Super + L`) | No such concept | None |
 | Window grouping / tabs (`Super + G`) | xfwm4 has no window groups | None |
-| Screen zoom (`Super + Ctrl + Z`) | No compositor-level zoom | `magnus` or `xzoom` (AUR), standalone magnifiers |
+| Screen zoom (`Super + Ctrl + Z`) | No compositor-level zoom | Over RDP, use the client's own zoom. Locally, `magnus` or `xzoom` (AUR) |
 | Fullscreen-inside-window (`Super + Ctrl + F`) | Hyprland-specific | None |
 | Quickshell top bar (bar, menu, notifications, lock screen as one process) | XFCE panel is a separate plugin system | XFCE panel, approximated |
 | Omarchy CLI, theme ecosystem, system snapshots | Part of the Omarchy distribution itself | Not applicable |
+
+### Works locally, degraded or dead over xrdp
+
+These are the rows marked `†` elsewhere in this guide. They work on a physical XFCE
+desktop and do not survive the trip through RDP.
+
+| Omarchy feature | Local XFCE | Over xrdp (Xorg backend) | Basis |
+| ----------------- | ------------ | -------------------------- | ------- |
+| Night light (`Super + Ctrl + N`) | Works | **Does nothing at all**, and exits 0 without an error | Verified in xorgxrdp source — see below |
+| Blur and shadows (picom) | Works | Not worth it: software rendering, and every frame is re-encoded | Reasoned, see [Compositing](#compositing) |
+| Window transparency | Works | Needs a compositor, so effectively unavailable | Reasoned |
+| Brightness keys (`XF86MonBrightness*`) | Works | No backlight device exists in a virtual session | Reasoned |
+| `omarchy-notice battery` | Works | A server usually has no battery for `acpi` to read | Reasoned |
+| `Print` / `Alt + Print` capture | Works | **Windows clients only:** the client keeps these keys | [The Print key problem](#the-print-key-problem) |
+| Everything bound to `Super` | Works | Client-dependent, and fixable client-side | [RDP Client Setup](#rdp-client-setup) |
+
+**Why the night light cannot work.** xorgxrdp registers RandR gamma callbacks that do
+nothing: `rdpRRCrtcSetGamma()` logs one trace line and returns `TRUE`, and the ramps it
+allocates are commented `/* Create and initialise (unused) gamma ramps */`
+(`module/rdpRandR.c`). No other gamma path exists in the driver either — there is no
+VidMode hook and no `ChangeGamma` anywhere in its sources. Redshift tries its methods in
+the order `drm → randr → vidmode → dummy` (`src/redshift.c`), the RandR call reports
+success, so it stops there and never falls back. The result is a command that exits 0
+while the screen stays exactly as it was. That is expected behaviour here, not a broken
+install.
+
+This was checked against the **Xorg / xorgxrdp** backend. The Xvnc backend was not
+examined; do not assume the finding carries over.
 
 ---
 
@@ -102,7 +153,285 @@ actively harmful (see [Scripts](#scripts)).
 sudo pacman -Syu
 ```
 
-Everything below assumes XFCE 4.18 or newer on X11.
+Everything below assumes XFCE 4.18 or newer on X11, reached over xrdp with the Xorg
+(xorgxrdp) backend. On a local physical desktop, skip the next two sections entirely and
+read the `†` notes as "does not apply to you".
+
+---
+
+## xrdp Server Setup and Tuning
+
+### Installing xrdp
+
+xrdp and its Xorg backend are both in the AUR, not the official repositories:
+
+```bash
+# with your preferred AUR helper
+paru -S xrdp xorgxrdp
+```
+
+The `xrdp` package on its own only supports the Xvnc backend. `xorgxrdp` adds the Xorg
+backend, which is what this guide targets throughout.
+
+Unprivileged users must be allowed to start X, or clients such as Remmina connect to a
+blank screen:
+
+```ini
+# /etc/X11/Xwrapper.config
+allowed_users=anybody
+needs_root_rights=no
+```
+
+Then start it:
+
+```bash
+sudo systemctl enable --now xrdp
+```
+
+Run the daemon as an unprivileged user. Create the account, point `xrdp.ini` at it, make
+`sesman.ini`'s `SessionSockdirGroup` match the same group, and check the result:
+
+```bash
+sudo useradd xrdp -d / -c 'xrdp daemon' -s /usr/bin/nologin
+# /etc/xrdp/xrdp.ini    ->  runtime_user=xrdp
+#                           runtime_group=xrdp
+# /etc/xrdp/sesman.ini  ->  SessionSockdirGroup=xrdp
+sudo /usr/share/xrdp/xrdp-chkpriv
+sudo systemctl restart xrdp
+```
+
+Optional GPU acceleration: `xorgxrdp-glamor` (Intel/AMD — OpenGL and Vulkan) or
+`xorgxrdp-nvidia`, both AUR. Without one of them the session renders entirely in
+software, which is the reason [Compositing](#compositing) is off by default here.
+
+### Session startup
+
+`/etc/xrdp/startwm.sh` behaves like `.xinitrc`: it reads `~/.xinitrc`, falling back to
+`/etc/X11/xinit/xinitrc`. Start XFCE with its own D-Bus session:
+
+```bash
+# ~/.xinitrc
+exec dbus-launch --exit-with-session xfce4-session
+```
+
+If you keep a distribution `~/.xinitrc` ending in `exec $(get_session "$1")`, note that
+`$1` is empty when xrdp calls it, and an empty session name is a black screen. Give it a
+default:
+
+```bash
+exec $(get_session "${1:-xfce}")
+```
+
+### Disconnect vs log out
+
+**This is the one place in this guide where a keystroke can cost you the whole machine.**
+
+xrdp keeps a session alive when you merely close the connection. Reconnect and you land
+back in the same desktop with every application still running. The session is destroyed
+only when the window manager itself exits.
+
+`Super + Escape` is bound to `xfce4-session-logout`. That dialog does prompt before
+acting — but its buttons include **Restart** and **Shut Down**, and from a remote session
+those apply to the machine you are connected *through*. Power it off and you are done for
+the day unless you have out-of-band access to it.
+
+So: to step away and keep everything running, **close the RDP client window**. Do not log
+out, and never bind `xfce4-session-logout --fast`, which skips the confirmation entirely.
+
+If you would rather not have the binding at all:
+
+```bash
+xfconf-query -c xfce4-keyboard-shortcuts -p '/commands/custom/<Super>Escape' -r
+```
+
+### Tuning
+
+`/etc/xrdp/xrdp.ini`:
+
+| Setting | Suggested | What it does |
+| --------- | ----------- | -------------- |
+| `max_bpp` | `24` | Caps colour depth. `16` helps on a slow link; unset or `0` means unlimited. |
+| `bitmap_cache` | `true` | Client-side bitmap cache. |
+| `bitmap_compression` | `true` | Compresses bitmaps. |
+| `bulk_compression` | `true` | Compresses bulk data. |
+| `tcp_nodelay` | `true` | Turns off Nagle buffering. This is the one you feel as typing latency. |
+| `tcp_keepalive` | `true` | Closes the socket when the link disappears without a proper close. |
+| `use_fastpath` | `both` | Fastpath input and output. **Defaults to `none`**, so this is a real change. |
+
+Two settings to leave alone:
+
+- `tcp_send_buffer_bytes` / `tcp_recv_buffer_bytes` — the manual's own advice is not to
+  set these on systems with dynamic TCP buffer sizing, which is every current Linux.
+- `crypt_level` — lowering it trades away transport security for very little. Only
+  defensible when the connection never leaves the host; see below.
+
+Since 0.10.2 xrdp prefers H.264, tuned in `/etc/xrdp/gfx.toml` (`man gfx.toml`):
+
+| Symptom | Try |
+| --------- | ----- |
+| Blocky or washed-out video | `preset = "medium"` |
+| Fast network but everything feels late | `order = ["RFX", "H.264"]` |
+
+#### Listening on localhost only
+
+Rather than exposing 3389, bind it to the loopback interface and reach it over SSH:
+
+```ini
+# /etc/xrdp/xrdp.ini
+port=tcp://.:3389
+```
+
+```bash
+# on the client
+ssh user@host -L 3389:localhost:3389
+# then point the RDP client at 127.0.0.1:3389
+```
+
+### Making the session detectable
+
+Several helpers in this guide need to know whether they are running remotely. Use two
+checks, not one — the first needs a root-owned file edited, and if you skip it the second
+still answers correctly:
+
+```bash
+in_rdp() {
+    # 1. Explicit, and the only method that also covers the Xvnc backend.
+    [ -n "${XRDP_SESSION:-}" ] && return 0
+    # 2. xorgxrdp names its RandR outputs rdp0, rdp1, ... (module/rdpRandR.c).
+    #    Xorg backend only; this does not detect an Xvnc session.
+    xrandr --listmonitors 2>/dev/null | grep -q ' rdp[0-9]'
+}
+```
+
+To set the variable, add it to sesman's session environment:
+
+```ini
+# /etc/xrdp/sesman.ini
+[SessionVariables]
+XRDP_SESSION=1
+```
+
+Log out and back in for it to take effect. The section already exists in the shipped
+file, with `XRDP_USE_ACCEL_ASSIST` and `XRDP_NVIDIA_GRID` as commented examples.
+
+The fallback check needs `xrandr` (`xorg-xrandr`), and
+[Fonts and blanking](#fonts-and-blanking) needs `xset` (`xorg-xset`). Both are usually
+already present; if `xrandr` is missing the check simply reports "not remote", so set
+`XRDP_SESSION` rather than relying on it alone.
+
+### Audio
+
+```bash
+paru -S pipewire-module-xrdp    # or pulseaudio-module-xrdp for PulseAudio
+```
+
+**Log out and back in afterwards** — the module is loaded when the session starts, so
+installing it mid-session does nothing. Until it is in place there is no sink at all, and
+`pamixer` (the volume keys) fails rather than doing nothing.
+
+### Clipboard between client and server
+
+Two separate mechanisms, easy to confuse:
+
+| Want | Provided by | Notes |
+| ------ | ------------- | ------- |
+| Copy on the remote, paste on your local machine | `xrdp-chansrv`, via RDP's `cliprdr` channel | Started with the session; nothing to configure |
+| Scroll back through what you copied *inside* the session | `xfce4-clipman` | `Super + Ctrl + V`, see [Required Packages](#required-packages) |
+
+If cross-machine copy stops working, check that `xrdp-chansrv` is running before
+suspecting clipman.
+
+### Multiple monitors and dynamic resolution
+
+xorgxrdp resizes the virtual screen when you resize the client window, and supports
+multiple monitors when the client asks for them (`/multimon` in FreeRDP, the *Use all my
+monitors* checkbox in mstsc).
+
+Two knock-on effects on this guide:
+
+- `omarchy-focus-direction` treats all monitors as one flat coordinate space, so
+  `Super + Left` can jump across a screen edge rather than stopping at it.
+- xfwm4 tiling snaps to whatever geometry the session currently has. Resizing the client
+  window does not re-tile anything that is already placed.
+
+---
+
+## RDP Client Setup
+
+**Read this before configuring any keybindings.** Most of what follows in this guide is
+bound to `Super`, and whether `Super` reaches the remote desktop is decided entirely on
+the client side.
+
+There are two distinct problems here, and they have different answers:
+
+| Problem | Fixable? |
+| --------- | ---------- |
+| `Super` combinations do not reach the session | **Yes**, in client settings |
+| `Print` / `Alt + Print` do not reach the session | **Not on Windows clients.** Use the [Tier A aliases](#tier-a--print-key-aliases) |
+
+### Forwarding Super
+
+**Windows (mstsc / Windows App).** *Show Options → Local Resources → Keyboard → Apply
+Windows key combinations*:
+
+| Option | Effect |
+| -------- | -------- |
+| `On this computer` | Windows-key combinations stay local. **Nothing in this guide works.** |
+| `On the remote computer` | They go to the session. **Use this.** |
+| `Only when using the full screen` | They go to the session only while the client is full-screen. |
+
+Note that hotkeys do not work at all inside nested RDP or RemoteApp sessions.
+
+**FreeRDP / Remmina.** `grab-keyboard` is already on by default — "grab keyboard focus,
+forward all keys to remote" — so `Super` and `Print` both arrive without extra work:
+
+```bash
+xfreerdp3 /v:host:3389 /u:user /dynamic-resolution /clipboard /sound +grab-keyboard
+```
+
+**macOS.** Check your client's keyboard mode; the mapping from `Command` to `Super`
+varies by client and is not consistent enough to document here. Verify with `xev` (below)
+rather than trusting a menu label.
+
+### The Print key problem
+
+Microsoft documents `Print Screen` and `Alt + Print Screen` as having in-session
+equivalents, `Ctrl + Alt + Plus` and `Ctrl + Alt + Minus`, which put a snapshot on the
+clipboard. The plain keys are handled by the local Windows machine.
+
+*Inference, not a quoted guarantee:* `Print Screen` is not a "Windows key combination",
+so setting *Apply Windows key combinations* to `On the remote computer` most likely does
+**not** forward it either. Test it rather than assuming — run this in a remote terminal
+and press `Print`:
+
+```bash
+xev | grep -i keysym
+```
+
+Nothing printed means the client kept the key, and you want the
+[Tier A aliases](#tier-a--print-key-aliases). FreeRDP and Remmina forward `Print` fine
+and need no aliases.
+
+### Keys the RDP client keeps for itself
+
+These never reach the session, so nothing in this guide may be bound to them:
+
+| Key | Client action |
+| ----- | --------------- |
+| `Ctrl + Alt + End` | Ctrl+Alt+Del on the remote |
+| `Ctrl + Alt + Home` | Activates the connection bar |
+| `Ctrl + Alt + Break` / `Pause` | Toggles full-screen |
+| `Ctrl + Alt + Plus` / `Minus` | Screenshot to the clipboard |
+| `Alt + Page Up` / `Page Down` | Switch programs (stands in for `Alt + Tab`) |
+| `Alt + Insert` | Cycle programs |
+| `Alt + Home` | Start menu |
+| `Alt + Delete` | System menu |
+
+### Keyboard layout
+
+xrdp maps scancodes with `/etc/xrdp/km-<langid>.toml` — `km-00000409.toml` is US English;
+older `.ini` files of the same name still ship alongside. If the wrong characters arrive,
+this is where to look, not in XFCE's keyboard settings.
 
 ---
 
@@ -113,18 +442,37 @@ Grouped by what they are for, so you can skip the parts you do not want.
 ### Core
 
 ```bash
-sudo pacman -S picom rofi maim xclip xdotool wmctrl \
-  playerctl brightnessctl pamixer btop
+sudo pacman -S rofi maim xclip xdotool wmctrl playerctl pamixer btop
 ```
 
 | Package | Used for |
 | --------- | ---------- |
-| `picom` | Compositing (transparency, blur, shadows) — replaces the XFCE compositor |
 | `rofi` | Application launcher (`Super + Space`) |
 | `maim` `xclip` | Screenshots and clipboard piping |
 | `xdotool` `wmctrl` | Window queries used by the helper scripts |
-| `playerctl` `brightnessctl` `pamixer` | Media and hardware keys |
+| `playerctl` `pamixer` | Media keys |
 | `btop` | Activity monitor (`Super + Ctrl + T`) |
+
+`maim`, `xdotool`, `wmctrl`, and `xclip` are ordinary X11 clients. In a remote session
+they read and drive the virtual display, so they work exactly as they do locally.
+
+`picom` and `brightnessctl` used to be in this list. They are now under
+[Local desktop only](#local-desktop-only).
+
+### Remote session
+
+Installed in [xrdp Server Setup and Tuning](#xrdp-server-setup-and-tuning); listed here so
+the package inventory is complete.
+
+```bash
+paru -S xrdp xorgxrdp pipewire-module-xrdp
+```
+
+| Package | Provides |
+| --------- | ---------- |
+| `xrdp` | The RDP server itself (Xvnc backend only, on its own) |
+| `xorgxrdp` | The Xorg backend this guide targets |
+| `pipewire-module-xrdp` | Audio forwarding. Without it there is no sink and `pamixer` fails |
 
 ### Omarchy-parity features
 
@@ -142,7 +490,7 @@ sudo pacman -S xfce4-clipman-plugin xfce4-notifyd xcolor \
 | `xcolor` | Colour picker | `Super + Print` |
 | `tesseract` `tesseract-data-eng` | OCR text extraction | `Super + Ctrl + Print` |
 | `ffmpeg` | Screen recording via `x11grab` | `Alt + Print` |
-| `redshift` | Night light | `Super + Ctrl + N` |
+| `redshift` | Night light `†` — **no effect over xrdp**, see the [compatibility matrix](#works-locally-degraded-or-dead-over-xrdp) | `Super + Ctrl + N` |
 | `pavucontrol` `blueman` `network-manager-applet` `xfce4-power-manager` | System panels | `Super + Ctrl + A/B/W/P` |
 | `galculator` | Calculator | `Super + Ctrl + Q` |
 | `rofimoji` | Emoji picker | `Super + Ctrl + E` |
@@ -165,6 +513,19 @@ paru -S tdrop localsend
 
 `tdrop` is optional — `xfce4-terminal --drop-down` gives you a drop-down terminal with no
 extra package. See [`omarchy-scratchpad`](#omarchy-scratchpad).
+
+### Local desktop only
+
+Skip both of these on a machine you only reach over RDP.
+
+```bash
+sudo pacman -S picom brightnessctl
+```
+
+| Package | Used for | Why not remotely |
+| --------- | ---------- | ------------------ |
+| `picom` | Compositing: transparency, blur, shadows | No GPU, and every composited frame gets re-encoded and shipped over the wire. See [Compositing](#compositing) |
+| `brightnessctl` | `XF86MonBrightness*` keys | A virtual session has no backlight device |
 
 ### Fonts
 
@@ -395,6 +756,10 @@ Records the full screen without audio. Omarchy's recorder additionally offers re
 selection, desktop/microphone audio, a webcam overlay, and GPU encoding via
 `gpu-screen-recorder`; none of that is reproduced here.
 
+Over xrdp this records the virtual display, which works — but `libx264` and xrdp's own
+encoder are then competing for the same CPU. Expect the session itself to get choppy
+while a recording is running.
+
 #### `omarchy-color-picker`
 
 ```bash
@@ -492,7 +857,7 @@ esac
 
 Clipboard **history** (`Super + Ctrl + V`) needs no script — bind `xfce4-popup-clipman`,
 provided by `xfce4-clipman-plugin`. Start `xfce4-clipman` at login (see
-[Autostart](#7-autostart-applications)).
+[Autostart](#autostart-applications)).
 
 ### Window management
 
@@ -611,6 +976,14 @@ xfconf-query -c xfce4-notifyd -p /do-not-disturb --create -t bool -s false
 # Toggle night light. Omarchy: Super + Ctrl + N (4000K / 6500K)
 set -euo pipefail
 
+# xorgxrdp's gamma callbacks are stubs -- rdpRRCrtcSetGamma() returns TRUE without
+# applying anything, and the driver has no VidMode path either. Redshift picks RandR,
+# is told it succeeded, and never falls back, so it exits 0 and changes nothing.
+if [ -n "${XRDP_SESSION:-}" ] || xrandr --listmonitors 2>/dev/null | grep -q ' rdp[0-9]'; then
+    notify-send "Night light" "Not available in an xrdp session"
+    exit 0
+fi
+
 STATE="${XDG_RUNTIME_DIR:-/tmp}/omarchy-nightlight"
 
 if [ -f "$STATE" ]; then
@@ -623,6 +996,16 @@ else
     notify-send "Night light" "On (4000K)"
 fi
 ```
+
+`†` **The guard is not optional over xrdp.** Without it `redshift -O 4000` exits 0, the
+notification claims the night light is on, and the screen never changes — which looks
+like a broken script rather than a missing capability. The reasoning, with source
+references, is in
+[Works locally, degraded or dead over xrdp](#works-locally-degraded-or-dead-over-xrdp).
+
+The `xrandr` half of the check covers people who have not added `XRDP_SESSION=1` to
+`sesman.ini` yet; it detects the Xorg backend only. See
+[Making the session detectable](#making-the-session-detectable).
 
 #### `omarchy-toggle-bar`
 
@@ -692,7 +1075,12 @@ case "${1:-}" in
         notify-send "$(date '+%H:%M')" "$(date '+%A, %d %B %Y')"
         ;;
     battery)
-        notify-send "Battery" "$(acpi -b | head -n1)"
+        BATT=$(acpi -b 2>/dev/null | head -n1 || true)
+        if [ -n "$BATT" ]; then
+            notify-send "Battery" "$BATT"
+        else
+            notify-send "Battery" "No battery reported by acpi"
+        fi
         ;;
     weather)
         notify-send "Weather" "$(curl -sf --max-time 5 'wttr.in/?format=%l:+%c+%t+%w' \
@@ -706,6 +1094,9 @@ esac
 ```
 
 `acpi` needs the `acpi` package, and the weather line needs network access.
+
+`†` A remote host usually has no battery, so `acpi -b` prints nothing. The explicit
+branch above exists so you get a clear message instead of an empty notification.
 
 #### `omarchy-reminder`
 
@@ -800,6 +1191,10 @@ so you can read them side by side.
 the scripts above), or *Not possible* (see the
 [Compatibility Matrix](#compatibility-matrix)).
 
+**Status is judged inside an xrdp session.** Rows marked `†` behave differently on a
+local physical desktop; the footnote under each table says how. And all of it assumes
+your client forwards `Super` — see [RDP Client Setup](#rdp-client-setup).
+
 ### A note on the accelerator syntax
 
 XFCE stores shortcuts as GTK accelerator strings, which have two traps:
@@ -823,7 +1218,7 @@ Two separate xfconf paths are involved:
 | --------- | ---------- | ------ | -------- |
 | `Super + Space` | Omarchy menu | `omarchy-menu` (rofi) | Emulated |
 | `Super + Alt + Space` | Apps menu | `omarchy-menu` (same launcher) | Emulated |
-| `Super + Escape` | System menu | `xfce4-session-logout` | Native |
+| `Super + Escape` | System menu | `xfce4-session-logout` — **[read this first](#disconnect-vs-log-out)** | Native |
 | `Super + Ctrl + L` | Lock | `xflock4` | Native |
 | `Super + W` / `Super + Q` | Close window | `close_window_key` | Native |
 | `Ctrl + Alt + Del` | Close all windows | *(XFCE binds this to the logout dialog)* | Not possible |
@@ -907,11 +1302,17 @@ XFCE's own and is already installed.
 
 | Omarchy | Function | XFCE | Status |
 | --------- | ---------- | ------ | -------- |
-| `Print` | Screenshot | `omarchy-screenshot-file` | Emulated |
-| `Alt + Print` | Screen recording | `omarchy-screenrecord` | Emulated |
-| `Super + Print` | Colour picker | `omarchy-color-picker` | Emulated |
-| `Super + Ctrl + Print` | Text extraction (OCR) | `omarchy-ocr` | Emulated |
-| `Shift + Print` | Screenshot to clipboard only | `omarchy-screenshot-selection` | Emulated |
+| `Print` | Screenshot | `omarchy-screenshot-file` | Emulated `†` |
+| `Alt + Print` | Screen recording | `omarchy-screenrecord` | Emulated `†` |
+| `Super + Print` | Colour picker | `omarchy-color-picker` | Emulated `†` |
+| `Super + Ctrl + Print` | Text extraction (OCR) | `omarchy-ocr` | Emulated `†` |
+| `Shift + Print` | Screenshot to clipboard only | `omarchy-screenshot-selection` | Emulated `†` |
+
+`†` **On Windows clients these keys never reach the session** — the client keeps
+`Print` and `Alt + Print` for its own clipboard snapshots. Bind the
+[Tier A aliases](#tier-a--print-key-aliases) instead. FreeRDP and Remmina forward them
+normally, and so does a local desktop. Details in
+[The Print key problem](#the-print-key-problem).
 
 `Shift + Print` is not an Omarchy binding — Omarchy's single `Print` saves to a file *and*
 copies to the clipboard. `omarchy-screenshot-file` does both, so the extra key is only
@@ -943,7 +1344,7 @@ whose Log tab shows the last 100 entries.
 | --------- | ---------- | ------ | -------- |
 | `Super + Ctrl + Shift + Space` | Pick a theme | `omarchy-theme-switch` | Emulated |
 | `Super + Ctrl + Space` | Pick a background | one-liner below | Emulated |
-| `Super + Backspace` | Toggle window transparency | one-liner below | Emulated |
+| `Super + Backspace` | Toggle window transparency | one-liner below | **Not possible** `†` |
 | `Super + Ctrl + Backspace` | Square single-window aspect | — | Not possible |
 
 Random background from a directory:
@@ -963,22 +1364,34 @@ xprop -id "$(xdotool getactivewindow)" -f _NET_WM_WINDOW_OPACITY 32c \
 
 Remove it again with `xprop -id … -remove _NET_WM_WINDOW_OPACITY`.
 
+`†` `_NET_WM_WINDOW_OPACITY` is only a hint — something has to composite the window for
+it to mean anything. With no compositor running (the default over xrdp, see
+[Compositing](#compositing)) setting the property has no visible effect.
+
 ### Toggles
 
 | Omarchy | Function | XFCE | Status |
 | --------- | ---------- | ------ | -------- |
-| `Super + Ctrl + N` | Night light | `omarchy-toggle-nightlight` | Emulated |
+| `Super + Ctrl + N` | Night light | `omarchy-toggle-nightlight` | **Not possible** `†` |
 | `Super + Shift + Space` | Toggle the bar | `omarchy-toggle-bar` | Emulated |
 | `Super + Ctrl + I` | Stay awake (no idle lock) | `xfconf-query -c xfce4-session -p /shutdown/LockScreen -T` | Emulated |
 | `Super + Shift + Backspace` | Window gaps | *(xfwm4 has no gaps)* | Not possible |
+
+`†` The night light works on a local desktop (`redshift`). Under xorgxrdp the driver has
+no gamma path at all, so it silently does nothing — the script detects the session and
+says so rather than pretending. Not verified for the Xvnc backend. See
+[Works locally, degraded or dead over xrdp](#works-locally-degraded-or-dead-over-xrdp).
 
 ### Notices
 
 | Omarchy | Function | XFCE | Status |
 | --------- | ---------- | ------ | -------- |
 | `Super + Ctrl + Alt + T` | Time as a notification | `omarchy-notice time` | Emulated |
-| `Super + Ctrl + Alt + B` | Battery as a notification | `omarchy-notice battery` | Emulated |
-| `Super + Ctrl + Alt + W` | Weather as a notification | `omarchy-notice weather` | Emulated |
+| `Super + Ctrl + Alt + B` | Battery as a notification | `omarchy-notice battery` | Emulated `†` |
+| `Super + Ctrl + Alt + W` | Weather as a notification | `omarchy-notice weather` | Emulated `†` |
+
+`†` A remote host normally has no battery, so this reports "No battery reported by acpi".
+The weather line needs outbound network access from the *server*, not from your client.
 
 ### Reminders
 
@@ -1000,8 +1413,13 @@ Straight XFCE application shortcuts, unchanged from earlier versions of this gui
 | `XF86AudioPlay` | `playerctl play-pause` |
 | `XF86AudioNext` | `playerctl next` |
 | `XF86AudioPrev` | `playerctl previous` |
-| `XF86MonBrightnessUp` | `brightnessctl set +5%` |
-| `XF86MonBrightnessDown` | `brightnessctl set 5%-` |
+| `XF86MonBrightnessUp` | `brightnessctl set +5%` `†` |
+| `XF86MonBrightnessDown` | `brightnessctl set 5%-` `†` |
+
+`†` Brightness only exists on a local desktop. A virtual session has no backlight device,
+so `brightnessctl` fails; skip these two bindings on a remote host. Volume and playback
+keys do work remotely, provided `pipewire-module-xrdp` is installed — see
+[Audio](#audio).
 
 ---
 
@@ -1130,6 +1548,14 @@ cmd 'XF86MonBrightnessDown'   'brightnessctl set 5%-'
 # Four workspaces, matching Omarchy
 xfconf-query -c xfwm4 -p /general/workspace_count -s 4
 
+# --- Remote-session window manager tuning -----------------------------------
+# box_move and box_resize default to false upstream. Wireframe move/resize sends a
+# rectangle instead of a live redraw, which is the difference between usable and not
+# on a slow link. Compositing has to be off either way.
+xfconf-query -c xfwm4 -p /general/use_compositing -s false
+xfconf-query -c xfwm4 -p /general/box_move        -s true
+xfconf-query -c xfwm4 -p /general/box_resize      -s true
+
 echo "Done. Log out and back in if anything does not respond."
 ```
 
@@ -1142,11 +1568,161 @@ xfconf-query -c xfce4-keyboard-shortcuts -lv | grep -i super | sort
 If a binding does nothing, the accelerator string is almost always the cause — check the
 modifier order and that Ctrl is spelled `<Primary>`.
 
+### Tier A — Print-key aliases
+
+**Bind these if you connect from a Windows client.** They are the only part of this guide
+that cannot be fixed in client settings: `Print` and `Alt + Print` are consumed by the
+client itself. Everything else that appears broken is a `Super`-forwarding problem, and
+belongs in [RDP Client Setup](#rdp-client-setup) instead.
+
+Five bindings, added alongside the `Print` ones — nothing is removed, so both work
+wherever both arrive.
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+BIN="$HOME/.local/bin"
+CH=xfce4-keyboard-shortcuts
+cmd() { xfconf-query -c "$CH" -p "/commands/custom/$1" --create -t string -s "$2"; }
+
+cmd '<Shift><Primary><Alt>p'  "$BIN/omarchy-screenshot-file"
+cmd '<Shift><Primary><Alt>s'  "$BIN/omarchy-screenshot-selection"
+cmd '<Shift><Primary><Alt>r'  "$BIN/omarchy-screenrecord"
+cmd '<Shift><Primary><Alt>c'  "$BIN/omarchy-color-picker"
+cmd '<Shift><Primary><Alt>o'  "$BIN/omarchy-ocr"
+```
+
+| Alias | Replaces | Action |
+| ------- | ---------- | -------- |
+| `Ctrl + Shift + Alt + P` | `Print` | Screenshot to a file |
+| `Ctrl + Shift + Alt + S` | `Shift + Print` | Screenshot to the clipboard |
+| `Ctrl + Shift + Alt + R` | `Alt + Print` | Toggle screen recording |
+| `Ctrl + Shift + Alt + C` | `Super + Print` | Colour picker |
+| `Ctrl + Shift + Alt + O` | `Super + Ctrl + Print` | OCR |
+
+Three-modifier combinations were chosen deliberately: they collide with far less than
+plain `Ctrl + Alt + <letter>` does, and none of them is on the
+[list of keys the client keeps](#keys-the-rdp-client-keeps-for-itself).
+
+To undo:
+
+```bash
+for k in p s r c o; do
+    xfconf-query -c xfce4-keyboard-shortcuts \
+      -p "/commands/custom/<Shift><Primary><Alt>$k" -r
+done
+```
+
+### Tier B — no-Super fallback
+
+**Only bind this if your client genuinely cannot forward `Super`** — a locked-down
+Windows client, a browser-based gateway, or a nested RDP session, where Microsoft
+documents hotkeys as not working at all. For everything else, fix the client; it is one
+dropdown.
+
+**Read the cost first.** This takes over `Ctrl + Alt + <letter>`, which on Linux is not
+free space. JetBrains IDEs bind `Ctrl + Alt` with `L`, `S`, `O`, `V`, `T`, `F`, `C` and
+`P` by default, among others. XFCE grabs shortcuts globally and wins, so the IDE simply
+stops receiving them. Check what you would be shadowing before you run this:
+
+```bash
+# What is already bound on these keys
+xfconf-query -c xfce4-keyboard-shortcuts -lv | grep -i 'Primary><Alt'
+```
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+BIN="$HOME/.local/bin"
+CH=xfce4-keyboard-shortcuts
+wm()  { xfconf-query -c "$CH" -p "/xfwm4/custom/$1"   --create -t string -s "$2"; }
+cmd() { xfconf-query -c "$CH" -p "/commands/custom/$1" --create -t string -s "$2"; }
+
+# --- Window manager actions -------------------------------------------------
+wm '<Primary><Alt>w'              close_window_key
+wm '<Primary><Alt>f'              fullscreen_key
+wm '<Primary><Alt>Left'           prev_workspace_key
+wm '<Primary><Alt>Right'          next_workspace_key
+
+for i in 1 2 3 4; do
+    wm "<Primary><Alt>$i"         "workspace_${i}_key"
+    wm "<Shift><Primary><Alt>$i"  "move_window_workspace_${i}_key"
+done
+
+# --- Commands ---------------------------------------------------------------
+cmd '<Primary><Alt>Return'        'alacritty'
+cmd '<Primary><Alt>t'             'alacritty'
+cmd '<Primary><Alt>space'         "$BIN/omarchy-menu"
+cmd '<Primary><Alt>l'             'xflock4'
+cmd '<Primary><Alt>grave'         "$BIN/omarchy-scratchpad"
+cmd '<Primary><Alt>v'             'xfce4-popup-clipman'
+
+cmd '<Shift><Primary><Alt>Left'   "$BIN/omarchy-focus-direction left"
+cmd '<Shift><Primary><Alt>Right'  "$BIN/omarchy-focus-direction right"
+cmd '<Shift><Primary><Alt>Up'     "$BIN/omarchy-focus-direction up"
+cmd '<Shift><Primary><Alt>Down'   "$BIN/omarchy-focus-direction down"
+```
+
+| Alias | Replaces | Action |
+| ------- | ---------- | -------- |
+| `Ctrl + Alt + Return`, `Ctrl + Alt + T` | `Super + Return` | Terminal |
+| `Ctrl + Alt + Space` | `Super + Space` | Launcher |
+| `Ctrl + Alt + W` | `Super + W` | Close window |
+| `Ctrl + Alt + F` | `Super + F` | Fullscreen |
+| `Ctrl + Alt + 1…4` | `Super + 1…4` | Switch workspace |
+| `Ctrl + Shift + Alt + 1…4` | `Super + Shift + 1…4` | Move window to workspace |
+| `Ctrl + Alt + Left` / `Right` | `Super + Tab` / `Super + Shift + Tab` | Previous / next workspace |
+| `Ctrl + Shift + Alt + Arrow` | `Super + Arrow` | Move focus in a direction |
+| `Ctrl + Alt + L` | `Super + Ctrl + L` | Lock |
+| `Ctrl + Alt + Grave` | `Super + Grave` | Scratchpad |
+| `Ctrl + Alt + V` | `Super + Ctrl + V` | Clipboard history |
+
+`Ctrl + Alt + Left` / `Right` is XFCE's own traditional workspace binding, so this binds
+it to the meaning it already had rather than repurposing it.
+
+To undo:
+
+```bash
+CH=xfce4-keyboard-shortcuts
+for k in w f Left Right 1 2 3 4 Return t space l grave v; do
+    xfconf-query -c "$CH" -p "/xfwm4/custom/<Primary><Alt>$k"   -r 2>/dev/null || true
+    xfconf-query -c "$CH" -p "/commands/custom/<Primary><Alt>$k" -r 2>/dev/null || true
+done
+for k in 1 2 3 4 Left Right Up Down; do
+    xfconf-query -c "$CH" -p "/xfwm4/custom/<Shift><Primary><Alt>$k"   -r 2>/dev/null || true
+    xfconf-query -c "$CH" -p "/commands/custom/<Shift><Primary><Alt>$k" -r 2>/dev/null || true
+done
+```
+
 ---
 
 ## Configuration Files
 
-### 1. Picom
+### Compositing
+
+**Over xrdp, run no compositor at all.** That is the default assumed everywhere else in
+this guide, and it is already applied by the
+[keybinding script](#applying-the-keybindings):
+
+```bash
+xfconf-query -c xfwm4 -p /general/use_compositing -s false
+```
+
+Three points on a scale, so you can decide rather than just be told:
+
+| | Cost over RDP | Verdict |
+| --- | --------------- | --------- |
+| Blur (`dual_kawase`) and shadows | Every frame is recomposited, then re-encoded and shipped. No GPU unless you installed `xorgxrdp-glamor`. | Don't |
+| Plain transparency, `--backend xrender`, no blur, no shadows | Much cheaper, but still puts a compositor between every redraw and the wire | **Untested here.** Try it if you want it; measure before you keep it |
+| No compositor | — | The default in this guide |
+
+There is no XFCE-side switch that makes this free. If you want composited effects on a
+remote desktop, the honest prerequisite is GPU acceleration in the session —
+`xorgxrdp-glamor` or `xorgxrdp-nvidia` — not a lighter picom config.
+
+#### Local desktop: picom configuration
 
 **Location:** `~/.config/picom/picom.conf`
 
@@ -1161,13 +1737,7 @@ will fight.
 | Blur method | `dual_kawase` |
 | Blur strength | 5 |
 
-Disable the XFCE compositor:
-
-```bash
-xfconf-query -c xfwm4 -p /general/use_compositing -s false
-```
-
-### 2. Rofi
+### Rofi
 
 **Location:** `~/.config/rofi/config.rasi`
 
@@ -1179,21 +1749,25 @@ xfconf-query -c xfwm4 -p /general/use_compositing -s false
 | Width | 600 |
 | Border radius | 0 |
 
-### 3. Alacritty
+### Alacritty
 
 **Location:** `~/.config/alacritty/alacritty.toml`
 
 | Setting | Value |
 | --------- | ------- |
-| Opacity | 0.9 |
+| Opacity | `1.0` remotely, `0.9` locally |
 | Font | `JetBrainsMono Nerd Font 11` |
 | Background | `#1e1e2e` |
 | Foreground | `#cdd6f4` |
 
+Terminal opacity needs a compositor to mean anything. With none running — the default
+over xrdp — `0.9` gets you an opaque window and a slightly odd-looking config file, so
+set it to `1.0` and be explicit about it.
+
 Omarchy's default terminal is Foot, which is Wayland-only and cannot run on XFCE.
 Alacritty is one of Omarchy's supported alternatives and is the closest match here.
 
-### 4. XFCE Panel
+### XFCE Panel
 
 **Location:** *Settings → Panel*
 
@@ -1210,7 +1784,7 @@ This is the loosest approximation in the whole guide. Omarchy's bar is not a sta
 but part of the shell process that also draws the menu, notifications, OSD popups, and
 lock screen, with left/right/middle click actions on nearly every widget.
 
-### 5. Window Manager
+### Window Manager
 
 **Location:** *Settings → Window Manager*
 
@@ -1218,21 +1792,57 @@ lock screen, with left/right/middle click actions on nearly every widget.
 | --------- | ------- |
 | Theme | Adwaita-dark |
 | Title font | `JetBrainsMono Nerd Font 10` |
-| Compositor | **Disabled** (picom instead) |
+| Compositor | **Disabled** — see [Compositing](#compositing) |
+| Move / resize | Wireframe (`box_move`, `box_resize`) |
 
-### 6. Workspaces
+Wireframe move and resize are off upstream. Turning them on trades a live preview for a
+rectangle outline, which over a remote link is the difference between dragging a window
+and watching a slideshow of it:
+
+```bash
+xfconf-query -c xfwm4 -p /general/box_move   -s true
+xfconf-query -c xfwm4 -p /general/box_resize -s true
+```
+
+Skip both on a local desktop if you prefer the live preview.
+
+### Fonts and blanking
+
+Two settings that only matter remotely. Both are judgement calls rather than anything the
+documentation mandates, so the reasoning is spelled out.
+
+```bash
+# Subpixel antialiasing puts coloured fringes on glyph edges. Lossy RDP codecs then
+# amplify them into visible artefacts. Greyscale antialiasing avoids the whole problem.
+xfconf-query -c xsettings -p /Xft/RGBA -s none
+
+# Screen blanking and DPMS protect a monitor you are not looking at. There is no monitor,
+# and a blanked virtual screen is one more thing that can go wrong on reconnect.
+xset s off -dpms
+```
+
+`xset` does not persist. Put it in *Settings → Session and Startup → Application
+Autostart* if you want it every session.
+
+### Workspaces
 
 Four, to match Omarchy.
 
-### 7. Autostart Applications
+### Autostart Applications
 
 **Location:** *Settings → Session and Startup → Application Autostart*
 
-| Application | Command |
-| ------------- | --------- |
-| Picom | `picom --config ~/.config/picom/picom.conf` |
-| Clipman | `xfce4-clipman` |
-| Notification daemon | started on demand by D-Bus; no entry needed |
+| Application | Command | Remote? |
+| ------------- | --------- | --------- |
+| Clipman | `xfce4-clipman` | Yes |
+| Disable blanking | `xset s off -dpms` | Yes |
+| Picom | `picom --config ~/.config/picom/picom.conf` | **No — omit the entry** |
+| Notification daemon | started on demand by D-Bus; no entry needed | — |
+
+On a remote host, simply do not create the Picom entry. A guard inside the `Exec=` line
+is the obvious-looking alternative, but desktop-entry quoting rules make
+`Exec=sh -c '...$XRDP_SESSION...'` fragile enough that it is not worth the cleverness for
+a checkbox you tick once.
 
 `nitrogen` is no longer used — `xfdesktop` handles the wallpaper and is already running.
 
@@ -1288,13 +1898,45 @@ Four, to match Omarchy.
 ║                                                          ║
 ║ TOGGLES & NOTICES                                        ║
 ║ Super + Ctrl + ,           = Do not disturb              ║
-║ Super + Ctrl + N           = Night light                 ║
+║ Super + Ctrl + N           = Night light (local only)    ║
 ║ Super + Shift + Space      = Toggle the panel            ║
 ║ Super + Ctrl + R           = Set a reminder              ║
 ║ Super + Ctrl + Alt + T/B/W = Time / Battery / Weather    ║
 ║                                                          ║
 ║ MEDIA                                                    ║
-║ Volume, Play, Brightness   = Hardware keys               ║
+║ Volume / Play              = Hardware keys               ║
+║ Brightness                 = Hardware keys, local only   ║
+╚══════════════════════════════════════════════════════════╝
+```
+
+```text
+╔══════════════════════════════════════════════════════════╗
+║                 OVER XRDP - WHAT CHANGES                 ║
+╠══════════════════════════════════════════════════════════╣
+║ FIRST, IN THE RDP CLIENT                                 ║
+║ mstsc: Local Resources > Keyboard >                      ║
+║   Apply Windows key combinations                         ║
+║   = On the remote computer                               ║
+║ FreeRDP / Remmina: on by default, nothing to do          ║
+║                                                          ║
+║ TIER A - bind these on Windows clients                   ║
+║ Ctrl + Shift + Alt + P     = Screenshot to file          ║
+║ Ctrl + Shift + Alt + S     = Screenshot to clipboard     ║
+║ Ctrl + Shift + Alt + R     = Screen recording            ║
+║ Ctrl + Shift + Alt + C     = Colour picker               ║
+║ Ctrl + Shift + Alt + O     = Extract text (OCR)          ║
+║                                                          ║
+║ DOES NOT WORK REMOTELY                                   ║
+║ Super + Ctrl + N           = night light, no gamma path  ║
+║ Super + Backspace          = needs a compositor          ║
+║ Brightness keys            = no backlight device         ║
+║                                                          ║
+║ HANDLE WITH CARE                                         ║
+║ Super + Escape             = its Shut Down button powers ║
+║                              off the host you are using  ║
+║                                                          ║
+║ TIER B (Ctrl + Alt + ...) only if Super cannot be        ║
+║ forwarded. It shadows JetBrains' Ctrl + Alt defaults.    ║
 ╚══════════════════════════════════════════════════════════╝
 ```
 
@@ -1360,6 +2002,53 @@ wmctrl -lG         # windows with geometry (what omarchy-focus-direction reads)
 xprop -root _NET_ACTIVE_WINDOW
 ```
 
+### In an xrdp session
+
+Session detection — at least one of these must say yes, or the guards in the scripts
+cannot fire:
+
+```bash
+echo "XRDP_SESSION=${XRDP_SESSION:-unset}"
+xrandr --listmonitors        # expect an output named rdp0 on the Xorg backend
+```
+
+Audio, which needs `pipewire-module-xrdp` and a fresh login:
+
+```bash
+pactl info | grep -i 'server name\|default sink'
+pamixer --get-volume
+```
+
+Which keys actually arrive. Run this, then press `Super`, `Print`, and `Alt + Print`:
+
+```bash
+xev | grep -i keysym
+```
+
+No `Super_L` means the client is not forwarding it — go to
+[RDP Client Setup](#rdp-client-setup). No `Print` means you want the
+[Tier A aliases](#tier-a--print-key-aliases).
+
+Night light. **The correct result here is that nothing happens:**
+
+```bash
+redshift -O 4000    # exits 0, screen colour unchanged -- this is expected over xrdp
+redshift -x
+```
+
+Recording and clipboard round-trip:
+
+```bash
+# Three seconds of the virtual display
+ffmpeg -loglevel error -f x11grab -framerate 30 \
+  -video_size "$(xdpyinfo | awk '/dimensions:/ {print $2; exit}')" \
+  -i "$DISPLAY" -t 3 /tmp/test.mp4 && echo OK
+
+# Copy here, then paste on your local machine. Needs xrdp-chansrv running.
+echo "round trip" | xclip -selection clipboard
+pgrep -a xrdp-chansrv
+```
+
 ---
 
 ## Troubleshooting
@@ -1395,6 +2084,69 @@ echo "$PATH" | tr ':' '\n' | grep '.local/bin'
 
 Remember that the keybindings use absolute paths, so `PATH` only matters when you run
 them yourself from a terminal.
+
+### Over xrdp: the session is black, green, or blank
+
+Each has a different cause and a documented fix:
+
+| Symptom | Cause | Fix |
+| --------- | ------- | ----- |
+| Black screen after login | `~/.xinitrc` ends in `exec $(get_session "$1")` and `$1` is empty | `exec $(get_session "${1:-xfce}")` |
+| Black screen, desktop environment only | D-Bus was never started | `exec dbus-launch --exit-with-session xfce4-session` |
+| Green screen, nothing starts | `sesman.ini` cannot find Xorg | Change `param=Xorg` to `param=/usr/lib/Xorg` |
+| Blank screen from Remmina and friends | Unprivileged users may not start X | `/etc/X11/Xwrapper.config`: `allowed_users=anybody`, `needs_root_rights=no` |
+| Black box around the mouse pointer | Cursor rendering | `~/.Xresources-xrdp` with `Xcursor.core:1`, loaded via `xrdb` in `~/.xinitrc` |
+
+### Over xrdp: no sound
+
+```bash
+pactl info          # if this fails there is no sink at all
+```
+
+Install `pipewire-module-xrdp` (or `pulseaudio-module-xrdp`) and **log out and back in** —
+the module is loaded at session start, so installing it mid-session changes nothing.
+
+### Over xrdp: the desktop is sluggish
+
+In rough order of impact:
+
+1. Compositing is still on. `xfconf-query -c xfwm4 -p /general/use_compositing -s false`
+2. Something is running picom. See [Compositing](#compositing).
+3. `use_fastpath` is still at its default of `none`, and `tcp_nodelay` is off. See
+   [Tuning](#tuning).
+4. H.264 is fighting your link. Try `order = ["RFX", "H.264"]` in `/etc/xrdp/gfx.toml`.
+5. A screen recording is running and competing for CPU with xrdp's own encoder.
+
+### Over xrdp: `Super` does nothing
+
+The client is keeping it. This is a client setting, not an XFCE one — see
+[Forwarding Super](#forwarding-super). Confirm with `xev` before changing anything in
+XFCE.
+
+### Over xrdp: `Print` does nothing
+
+Expected on Windows clients: the client uses it for its own clipboard snapshots. Bind the
+[Tier A aliases](#tier-a--print-key-aliases).
+
+### Over xrdp: the night light does nothing
+
+Also expected, and not a bug you can fix. xorgxrdp has no gamma path, so `redshift`
+reports success and changes nothing; the reasoning and source references are in
+[Works locally, degraded or dead over xrdp](#works-locally-degraded-or-dead-over-xrdp).
+The shipped `omarchy-toggle-nightlight` detects the session and tells you instead of
+pretending.
+
+### Over xrdp: network or disk settings are greyed out
+
+Remote sessions do not automatically inherit the polkit privileges a local seat gets.
+NetworkManager and udisks both need explicit policy for this; the Arch wiki pages for
+each cover the rules. If `podman` also misbehaves, xrdp's temporary D-Bus address is
+usually why — re-export it in your shell profile:
+
+```bash
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$UID/bus
+export XDG_RUNTIME_DIR=/run/user/$UID
+```
 
 ### Picom is not starting
 
@@ -1465,6 +2217,14 @@ The `xfce-perchannel-xml` directory is the authoritative copy of all xfconf chan
 cp -r ~/.config/xfce4/xfconf/xfce-perchannel-xml ~/xfce-omarchy-backup/
 ```
 
+The xrdp side lives outside your home directory, so back it up separately:
+
+```bash
+sudo cp /etc/xrdp/xrdp.ini /etc/xrdp/sesman.ini ~/xfce-omarchy-backup/
+sudo cp /etc/xrdp/gfx.toml ~/xfce-omarchy-backup/ 2>/dev/null || true
+cp ~/.xinitrc ~/xfce-omarchy-backup/ 2>/dev/null || true
+```
+
 ### Restore
 
 ```bash
@@ -1521,6 +2281,10 @@ Log out and back in.
 - [Arch Wiki — Xfce](https://wiki.archlinux.org/title/Xfce)
 - [picom](https://github.com/yshui/picom)
 - [rofi](https://github.com/davatorium/rofi)
+- [Arch Wiki — Xrdp](https://wiki.archlinux.org/title/Xrdp) — the source for the setup and troubleshooting steps here
+- [neutrinolabs/xrdp](https://github.com/neutrinolabs/xrdp) — `xrdp.ini` and `sesman.ini` reference
+- [neutrinolabs/xorgxrdp](https://github.com/neutrinolabs/xorgxrdp) — the Xorg backend, and where the gamma finding comes from
+- [Remote Desktop Services shortcut keys](https://learn.microsoft.com/en-us/windows/win32/termserv/terminal-services-shortcut-keys) — which keys a Windows client keeps
 
 ---
 
@@ -1533,4 +2297,5 @@ Log out and back in.
 ---
 
 **Tracks:** Omarchy Manual as of 2026-09-03
-**Configuration version:** 2.0
+**Target:** xrdp with the Xorg (xorgxrdp) backend, XFCE 4.18+
+**Configuration version:** 3.0
